@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -11,7 +11,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   discount: '割引',
 }
 
-export default function NewMenuPage() {
+function NewMenuForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const category = searchParams.get('category') || 'menu'
@@ -30,51 +30,92 @@ export default function NewMenuPage() {
       price: price ? parseInt(price) : null,
       coupon_price: couponPrice ? parseInt(couponPrice) : null,
       min_price: minPrice ? parseInt(minPrice) : null,
-      sort_order: 999,
-      category,
+      category: category,
     }])
+    setSaving(false)
     router.push('/admin/menus')
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link href="/admin/menus" className="text-gray-400 hover:text-gray-600"><ArrowLeft size={20} /></Link>
-        <h1 className="text-xl font-bold text-gray-700">{CATEGORY_LABELS[category] ?? 'メニュー'}追加</h1>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-pink-50 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">メニュー名 *</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="ジェルネイル（手）"
-              className="w-full border border-pink-100 rounded-xl px-4 py-3 text-sm outline-none focus:border-pink-300"
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: '定価', value: price, set: setPrice, placeholder: '8000' },
-              { label: 'クーポン価格', value: couponPrice, set: setCouponPrice, placeholder: '6000' },
-              { label: '公式最安値', value: minPrice, set: setMinPrice, placeholder: '5500' },
-            ].map(({ label, value, set, placeholder }) => (
-              <div key={label}>
-                <label className="block text-sm font-medium text-gray-600 mb-1">{label}</label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">¥</span>
-                  <input type="number" value={value} onChange={e => set(e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full border border-pink-100 rounded-xl pl-6 pr-2 py-3 text-sm outline-none focus:border-pink-300"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/admin/menus" className="text-gray-500 hover:text-gray-700">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <h1 className="text-xl font-bold text-gray-800">
+            {CATEGORY_LABELS[category] || 'メニュー'}を追加
+          </h1>
         </div>
-        <button type="submit" disabled={saving || !name.trim()}
-          className="w-full bg-pink-400 hover:bg-pink-500 disabled:bg-pink-200 text-white rounded-2xl py-4 font-bold transition-colors">
-          {saving ? '保存中...' : '保存する'}
-        </button>
-      </form>
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">名前</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                placeholder="メニュー名を入力"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">通常価格（円）</label>
+              <input
+                type="number"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                placeholder="例: 5000"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">クーポン価格（円）</label>
+              <input
+                type="number"
+                value={couponPrice}
+                onChange={e => setCouponPrice(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                placeholder="例: 4000"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">最低価格（円）</label>
+              <input
+                type="number"
+                value={minPrice}
+                onChange={e => setMinPrice(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300"
+                placeholder="例: 3000"
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 bg-pink-500 text-white py-2 px-4 rounded-lg hover:bg-pink-600 disabled:opacity-50 transition-colors"
+              >
+                {saving ? '保存中...' : '保存'}
+              </button>
+              <Link
+                href="/admin/menus"
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors text-center"
+              >
+                キャンセル
+              </Link>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
+  )
+}
+
+export default function NewMenuPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-gray-500">読み込み中...</div></div>}>
+      <NewMenuForm />
+    </Suspense>
   )
 }
