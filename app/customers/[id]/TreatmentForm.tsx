@@ -8,7 +8,6 @@ interface Menu { id: string; name: string; price?: number; coupon_price?: number
 interface Staff { id: string; name: string }
 interface SelectedItem { id: string; name: string; price: number }
 
-// ★ コンポーネント外に定義（再レンダリング問題を防ぐ）
 function Section({
   label, items, selected, setter, useCoupon = false, isOpen, onToggle
 }: {
@@ -22,13 +21,10 @@ function Section({
       price: (useCoupon ? menu.coupon_price : menu.price) ?? menu.price ?? 0
     }])
   }
-  const removeItem = (index: number) => {
-    setter(prev => prev.filter((_, i) => i !== index))
-  }
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <button type="button" onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50">
+        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 active:bg-gray-100">
         <span className="text-sm font-medium text-gray-700">{label}</span>
         <div className="flex items-center gap-2">
           {selected.length > 0 && (
@@ -45,7 +41,7 @@ function Section({
                 const price = (useCoupon ? m.coupon_price : m.price) ?? m.price ?? 0
                 return (
                   <button key={m.id} type="button" onClick={() => addItem(m)}
-                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 hover:bg-pink-50 hover:border-pink-300 hover:text-pink-600 transition-colors text-left">
+                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 hover:bg-pink-50 hover:border-pink-300 active:bg-pink-100 transition-colors text-left">
                     <div className="text-sm">{m.name}</div>
                     <div className="text-xs text-pink-500 mt-0.5">¥{price.toLocaleString()}</div>
                   </button>
@@ -134,7 +130,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     const payload = {
       customer_id: customerId,
       date,
-      services: menuStr || '',  // ★ servicesカラム（必須）
+      services: menuStr || '',
       visit_type: visitType,
       has_removal: hasRemoval,
       menu_items: menuItems,
@@ -146,36 +142,38 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       photo_urls: photoUrls,
       notes,
       total_price: total,
-      price: total,
     }
+    let error = null
     if (treatmentId) {
-      await supabase.from('treatments').update(payload).eq('id', treatmentId)
+      const res = await supabase.from('treatments').update(payload).eq('id', treatmentId)
+      error = res.error
     } else {
-      await supabase.from('treatments').insert([payload])
+      const res = await supabase.from('treatments').insert([payload])
+      error = res.error
     }
     setSaving(false)
-    router.push(`/customers/${customerId}`)
+    if (!error) {
+      router.push(`/customers/${customerId}`)
+    } else {
+      alert('保存に失敗しました: ' + error.message)
+    }
   }
 
   const menus = allMenus.filter(m => m.category === 'menu')
   const options = allMenus.filter(m => m.category === 'option')
   const retails = allMenus.filter(m => m.category === 'retail')
   const discounts = allMenus.filter(m => m.category === 'discount')
-  const allSelected = [...menuItems, ...optionItems, ...retailItems]
-  const hasAnySelected = allSelected.length + discountItems.length > 0
-
+  const hasAnySelected = menuItems.length + optionItems.length + retailItems.length + discountItems.length > 0
   const toggle = (id: string) => setOpenSection(prev => prev === id ? '' : id)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 日付 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">📅 日付</label>
         <input type="date" value={date} onChange={e => setDate(e.target.value)} required
           className="w-full border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-300" />
       </div>
 
-      {/* 来客区分 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">👤 来客区分</label>
         <div className="flex gap-3">
@@ -190,7 +188,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       </div>
 
-      {/* 付け替えオフ */}
       <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
         <span className="text-sm font-medium text-gray-700">🗑️ 付け替えオフ</span>
         <button type="button" onClick={() => setHasRemoval(v => !v)}
@@ -199,7 +196,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </button>
       </div>
 
-      {/* メニュー選択 */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-gray-700">💅 施術内容を選択（タップで追加）</p>
         <Section label="施術メニュー" items={menus} selected={menuItems} setter={setMenuItems} useCoupon={true}
@@ -212,7 +208,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
           isOpen={openSection === 'discount'} onToggle={() => toggle('discount')} />
       </div>
 
-      {/* 明細・合計エリア */}
       {hasAnySelected && (
         <div className="bg-white border-2 border-pink-200 rounded-xl overflow-hidden">
           <div className="bg-pink-50 px-4 py-2 border-b border-pink-100">
@@ -224,7 +219,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
                 <div><span className="text-xs text-pink-400 mr-1">メニュー</span><span className="text-sm text-gray-700">{item.name}</span></div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setMenuItems(prev => prev.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setMenuItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -233,7 +228,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
                 <div><span className="text-xs text-purple-400 mr-1">オプション</span><span className="text-sm text-gray-700">{item.name}</span></div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setOptionItems(prev => prev.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setOptionItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -242,7 +237,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
                 <div><span className="text-xs text-blue-400 mr-1">店販</span><span className="text-sm text-gray-700">{item.name}</span></div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setRetailItems(prev => prev.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setRetailItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -251,7 +246,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
                 <div><span className="text-xs text-green-500 mr-1">割引</span><span className="text-sm text-gray-700">{item.name}</span></div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-green-600">-¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setDiscountItems(prev => prev.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400"><X className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => setDiscountItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ))}
@@ -263,15 +258,13 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       )}
 
-      {/* 使用カラー */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">🎨 使用カラー</label>
         <textarea value={colors} onChange={e => setColors(e.target.value)} rows={2}
-          placeholder="例: ベース：ジェリーピンク、アート：ホワイト＆ゴールド"
+          placeholder="例: ベース：ジェリーピンク"
           className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm" />
       </div>
 
-      {/* 担当スタッフ */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">👩 担当スタッフ</label>
         <select value={staffId} onChange={e => setStaffId(e.target.value)}
@@ -281,14 +274,13 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </select>
       </div>
 
-      {/* 施術写真 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">📷 施術写真</label>
         <div className="flex flex-wrap gap-2">
           {photoUrls.map((url, idx) => (
             <div key={idx} className="relative">
               <img src={url} alt="施術写真" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
-              <button type="button" onClick={() => setPhotoUrls(prev => prev.filter((_, i) => i !== idx))}
+              <button type="button" onClick={() => setPhotoUrls(p => p.filter((_, i) => i !== idx))}
                 className="absolute -top-1 -right-1 bg-red-400 text-white rounded-full w-5 h-5 flex items-center justify-center">
                 <X className="w-3 h-3" />
               </button>
@@ -303,7 +295,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
       </div>
 
-      {/* メモ */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">📝 メモ</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
@@ -311,14 +302,13 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
           className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm" />
       </div>
 
-      {/* 保存ボタン */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex gap-3 pt-2 pb-8">
         <button type="submit" disabled={saving}
-          className="flex-1 bg-pink-500 text-white py-3 rounded-xl hover:bg-pink-600 disabled:opacity-50 font-medium text-sm">
+          className="flex-1 bg-pink-500 text-white py-3 rounded-xl hover:bg-pink-600 active:bg-pink-700 disabled:opacity-50 font-medium text-sm">
           {saving ? '保存中...' : '保存する'}
         </button>
         <button type="button" onClick={() => router.push(`/customers/${customerId}`)}
-          className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 text-sm">
+          className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 active:bg-gray-300 text-sm">
           キャンセル
         </button>
       </div>
