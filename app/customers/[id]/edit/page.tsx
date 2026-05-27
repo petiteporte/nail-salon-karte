@@ -10,6 +10,7 @@ export default function CustomerEditPage() {
   const router = useRouter()
   const id = params.id as string
   const [name, setName] = useState('')
+  const [furigana, setFurigana] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [birthday, setBirthday] = useState('')
@@ -21,6 +22,7 @@ export default function CustomerEditPage() {
     supabase.from('customers').select('*').eq('id', id).single().then(({ data }) => {
       if (data) {
         setName(data.name || '')
+        setFurigana(data.furigana || '')
         setPhone(data.phone || '')
         setEmail(data.email || '')
         setBirthday(data.birthday || '')
@@ -33,9 +35,7 @@ export default function CustomerEditPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('customers').update({
-      name, phone, email, birthday, notes
-    }).eq('id', id)
+    await supabase.from('customers').update({ name, furigana, phone, email, birthday, notes }).eq('id', id)
     setSaving(false)
     router.push(`/customers/${id}`)
   }
@@ -54,8 +54,14 @@ export default function CustomerEditPage() {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">名前 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">お名前 *</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ふりがな</label>
+              <input type="text" value={furigana} onChange={e => setFurigana(e.target.value)}
+                placeholder="例：たなか はなこ"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300" />
             </div>
             <div>
