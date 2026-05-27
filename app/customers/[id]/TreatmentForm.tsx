@@ -1,55 +1,115 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { X, Camera, ChevronDown, ChevronUp } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js'
 
-interface Menu { id: string; name: string; price?: number; coupon_price?: number; category: string }
-interface Staff { id: string; name: string }
-interface SelectedItem { id: string; name: string; price: number }
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
-function Section({
-  label, items, selected, setter, useCoupon = false, isOpen, onToggle
+type SelectedItem = { id: string; name: string; price: number; qty: number }
+type MenuRow = { id: string; name: string; price: number; category: string }
+type StaffRow = { id: string; name: string }
+
+interface Props {
+  customerId: string
+  treatmentId?: string
+}
+
+// ============================================================
+// Sectionコンポーネント - TreatmentForm の外に定義（重要）
+// ============================================================
+function ItemRow({
+  item,
+  onQtyChange,
+  onRemove,
 }: {
-  label: string; items: Menu[]; selected: SelectedItem[]
-  setter: React.Dispatch<React.SetStateAction<SelectedItem[]>>
-  useCoupon?: boolean; isOpen: boolean; onToggle: () => void
+  item: SelectedItem
+  onQtyChange: (id: string, delta: number) => void
+  onRemove: (id: string) => void
 }) {
-  const addItem = (menu: Menu) => {
-    setter(prev => [...prev, {
-      id: menu.id, name: menu.name,
-      price: (useCoupon ? menu.coupon_price : menu.price) ?? menu.price ?? 0
-    }])
-  }
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-100">
+      <span className="text-sm text-gray-700 flex-1">{item.name}</span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onQtyChange(item.id, -1)}
+          className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-lg leading-none hover:bg-gray-200"
+        >−</button>
+        <span className="w-6 text-center text-sm">{item.qty}</span>
+        <button
+          type="button"
+          onClick={() => onQtyChange(item.id, 1)}
+          className="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-lg leading-none hover:bg-pink-200"
+        >+</button>
+        <span className="w-16 text-right text-sm text-gray-600">¥{(item.price * item.qty).toLocaleString()}</span>
+        <button
+          type="button"
+          onClick={() => onRemove(item.id)}
+          className="ml-1 text-gray-300 hover:text-red-400 text-lg"
+        >×</button>
+      </div>
+    </div>
+  )
+}
+
+function MenuSection({
+  label,
+  allItems,
+  selected,
+  onToggle,
+  onQtyChange,
+  onRemove,
+}: {
+  label: string
+  allItems: MenuRow[]
+  selected: SelectedItem[]
+  onToggle: (item: MenuRow) => void
+  onQtyChange: (id: string, delta: number) => void
+  onRemove: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (allItems.length === 0) return null
+  const selectedIds = new Set(selected.map(s => s.id))
+
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <button type="button" onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 active:bg-gray-100">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
-        <div className="flex items-center gap-2">
-          {selected.length > 0 && (
-            <span className="bg-pink-100 text-pink-600 text-xs px-2 py-0.5 rounded-full">{selected.length}件</span>
-          )}
-          {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex justify-between items-center px-4 py-3 bg-gray-50 text-sm font-medium text-gray-700 hover:bg-gray-100"
+      >
+        <span>{label}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'} {selected.length > 0 ? `(${selected.length})` : ''}</span>
       </button>
-      {isOpen && (
-        <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
-          {items.length > 0 ? (
-            <div className="flex flex-wrap gap-2 pt-3">
-              {items.map(m => {
-                const price = (useCoupon ? m.coupon_price : m.price) ?? m.price ?? 0
-                return (
-                  <button key={m.id} type="button" onClick={() => addItem(m)}
-                    className="bg-white border border-gray-300 rounded-lg px-3 py-2 hover:bg-pink-50 hover:border-pink-300 active:bg-pink-100 transition-colors text-left">
-                    <div className="text-sm">{m.name}</div>
-                    <div className="text-xs text-pink-500 mt-0.5">¥{price.toLocaleString()}</div>
-                  </button>
-                )
-              })}
+
+      {open && (
+        <div className="px-4 py-2">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {allItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onToggle(item)}
+                className={`py-2 px-3 rounded-lg text-xs text-left border transition-colors ${
+                  selectedIds.has(item.id)
+                    ? 'border-pink-400 bg-pink-50 text-pink-700'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-pink-200'
+                }`}
+              >
+                <div className="font-medium">{item.name}</div>
+                <div className="text-gray-400">¥{item.price.toLocaleString()}</div>
+              </button>
+            ))}
+          </div>
+          {selected.length > 0 && (
+            <div className="border-t border-gray-100 pt-2">
+              {selected.map(item => (
+                <ItemRow key={item.id} item={item} onQtyChange={onQtyChange} onRemove={onRemove} />
+              ))}
             </div>
-          ) : (
-            <p className="text-xs text-gray-400 pt-3">（マスタに登録がありません）</p>
           )}
         </div>
       )}
@@ -57,261 +117,393 @@ function Section({
   )
 }
 
-interface Props { customerId: string; treatmentId?: string }
-
+// ============================================================
+// TreatmentForm メインコンポーネント
+// ============================================================
 export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 基本情報
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [visitType, setVisitType] = useState<'new' | 'repeat'>('repeat')
   const [hasRemoval, setHasRemoval] = useState(false)
+  const [colors, setColors] = useState('')
+  const [staffId, setStaffId] = useState('')
+  const [notes, setNotes] = useState('')
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+
+  // メニュー選択
   const [menuItems, setMenuItems] = useState<SelectedItem[]>([])
   const [optionItems, setOptionItems] = useState<SelectedItem[]>([])
   const [retailItems, setRetailItems] = useState<SelectedItem[]>([])
   const [discountItems, setDiscountItems] = useState<SelectedItem[]>([])
-  const [colors, setColors] = useState('')
-  const [staffId, setStaffId] = useState('')
-  const [photoUrls, setPhotoUrls] = useState<string[]>([])
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [notes, setNotes] = useState('')
-  const [allMenus, setAllMenus] = useState<Menu[]>([])
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const [saving, setSaving] = useState(false)
-  const [openSection, setOpenSection] = useState<string>('menu')
 
+  // マスタデータ
+  const [allMenus, setAllMenus] = useState<MenuRow[]>([])
+  const [allOptions, setAllOptions] = useState<MenuRow[]>([])
+  const [allRetails, setAllRetails] = useState<MenuRow[]>([])
+  const [allDiscounts, setAllDiscounts] = useState<MenuRow[]>([])
+  const [staffList, setStaffList] = useState<StaffRow[]>([])
+
+  const [loading, setLoading] = useState(false)
+
+  // マスタデータ読み込み
   useEffect(() => {
-    supabase.from('menus').select('*').order('sort_order').then(({ data }) => setAllMenus(data || []))
-    supabase.from('staff').select('*').order('sort_order').then(({ data }) => setStaffList(data || []))
-    if (treatmentId) {
-      supabase.from('treatments').select('*').eq('id', treatmentId).single().then(({ data }) => {
-        if (data) {
-          setDate(data.date || '')
-          setVisitType(data.visit_type || 'repeat')
-          setHasRemoval(data.has_removal || false)
-          setMenuItems(data.menu_items || [])
-          setOptionItems(data.option_items || [])
-          setRetailItems(data.retail_items || [])
-          setDiscountItems(data.discount_items || [])
-          setColors(data.colors || '')
-          setStaffId(data.staff_id || '')
-          setPhotoUrls(data.photo_urls || [])
-          setNotes(data.notes || '')
-        }
-      })
+    const load = async () => {
+      const [menusRes, staffRes] = await Promise.all([
+        supabase.from('menus').select('*').order('category').order('name'),
+        supabase.from('staff').select('id, name').order('name'),
+      ])
+      const menus = menusRes.data || []
+      setAllMenus(menus.filter(m => m.category === 'menu'))
+      setAllOptions(menus.filter(m => m.category === 'option'))
+      setAllRetails(menus.filter(m => m.category === 'retail'))
+      setAllDiscounts(menus.filter(m => m.category === 'discount'))
+      setStaffList(staffRes.data || [])
     }
-  }, [treatmentId])
+    load()
+  }, [])
 
-  const calcTotal = () => {
-    const sum = (arr: SelectedItem[]) => arr.reduce((s, i) => s + (i.price || 0), 0)
-    return sum(menuItems) + sum(optionItems) + sum(retailItems) - sum(discountItems)
-  }
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files?.length) return
-    setUploadingPhoto(true)
-    for (const file of Array.from(files)) {
-      const ext = file.name.split('.').pop()
-      const fileName = `${customerId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-      const { data, error } = await supabase.storage.from('treatment-photos').upload(fileName, file, { upsert: true })
-      if (!error && data) {
-        const { data: urlData } = supabase.storage.from('treatment-photos').getPublicUrl(data.path)
-        setPhotoUrls(prev => [...prev, urlData.publicUrl])
+  // 編集時の既存データ読み込み
+  useEffect(() => {
+    if (!treatmentId) return
+    const load = async () => {
+      const { data } = await supabase.from('treatments').select('*').eq('id', treatmentId).single()
+      if (data) {
+        setDate(data.date || '')
+        setVisitType(data.visit_type || 'repeat')
+        setHasRemoval(data.has_removal || false)
+        setMenuItems(data.menu_items || [])
+        setOptionItems(data.option_items || [])
+        setRetailItems(data.retail_items || [])
+        setDiscountItems(data.discount_items || [])
+        setColors(data.colors || '')
+        setStaffId(data.staff_id || '')
+        setNotes(data.notes || '')
+        setPhotoUrls(data.photo_urls || [])
       }
     }
-    setUploadingPhoto(false)
+    load()
+  }, [treatmentId])
+
+  // アイテム操作
+  const toggleItem = (setter: React.Dispatch<React.SetStateAction<SelectedItem[]>>) => (item: MenuRow) => {
+    setter(prev => {
+      const exists = prev.find(s => s.id === item.id)
+      if (exists) return prev.filter(s => s.id !== item.id)
+      return [...prev, { id: item.id, name: item.name, price: item.price, qty: 1 }]
+    })
   }
 
+  const changeQty = (setter: React.Dispatch<React.SetStateAction<SelectedItem[]>>) => (id: string, delta: number) => {
+    setter(prev => prev.map(s => s.id === id ? { ...s, qty: Math.max(1, s.qty + delta) } : s))
+  }
+
+  const removeItem = (setter: React.Dispatch<React.SetStateAction<SelectedItem[]>>) => (id: string) => {
+    setter(prev => prev.filter(s => s.id !== id))
+  }
+
+  // 合計金額
+  const calcTotal = (items: SelectedItem[]) => items.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const total = calcTotal(menuItems) + calcTotal(optionItems) + calcTotal(retailItems) - calcTotal(discountItems)
+
+  // 写真アップロード
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploading(true)
+    const urls: string[] = []
+    for (const file of Array.from(files)) {
+      const fileName = `${customerId}/${Date.now()}_${file.name}`
+      const { error } = await supabase.storage.from('treatment-photos').upload(fileName, file)
+      if (!error) {
+        const { data: urlData } = supabase.storage.from('treatment-photos').getPublicUrl(fileName)
+        urls.push(urlData.publicUrl)
+      }
+    }
+    setPhotoUrls(prev => [...prev, ...urls])
+    setUploading(false)
+  }
+
+  // 保存
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
-    const menuStr = menuItems.map(i => i.name).join('、')
-    const total = calcTotal()
+    setLoading(true)
+
+    const menuStr = menuItems.map(m => m.name).join(', ')
+    const allSelectedStr = [
+      ...menuItems.map(m => m.name),
+      ...optionItems.map(m => m.name),
+      ...retailItems.map(m => m.name),
+    ].join(', ')
+
     const payload = {
       customer_id: customerId,
       date,
-      services: menuStr || '',
+      services: allSelectedStr || menuStr || '',
       visit_type: visitType,
       has_removal: hasRemoval,
       menu_items: menuItems,
       option_items: optionItems,
       retail_items: retailItems,
       discount_items: discountItems,
+      total_price: total,
       colors,
       staff_id: staffId || null,
-      photo_urls: photoUrls,
       notes,
-      total_price: total,
+      photo_urls: photoUrls,
     }
-    let error = null
+
+    let error
     if (treatmentId) {
-      const res = await supabase.from('treatments').update(payload).eq('id', treatmentId)
-      error = res.error
+      const result = await supabase.from('treatments').update(payload).eq('id', treatmentId)
+      error = result.error
     } else {
-      const res = await supabase.from('treatments').insert([payload])
-      error = res.error
+      const result = await supabase.from('treatments').insert(payload)
+      error = result.error
     }
-    setSaving(false)
-    if (!error) {
-      router.push(`/customers/${customerId}`)
-    } else {
+
+    setLoading(false)
+    if (error) {
       alert('保存に失敗しました: ' + error.message)
+    } else {
+      router.push(`/customers/${customerId}`)
     }
   }
 
-  const menus = allMenus.filter(m => m.category === 'menu')
-  const options = allMenus.filter(m => m.category === 'option')
-  const retails = allMenus.filter(m => m.category === 'retail')
-  const discounts = allMenus.filter(m => m.category === 'discount')
-  const hasAnySelected = menuItems.length + optionItems.length + retailItems.length + discountItems.length > 0
-  const toggle = (id: string) => setOpenSection(prev => prev === id ? '' : id)
+  const allSelected = [...menuItems, ...optionItems, ...retailItems, ...discountItems]
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+
+      {/* 日付 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">📅 日付</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} required
-          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-300" />
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          required
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-300"
+        />
       </div>
 
+      {/* 来客区分 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">👤 来客区分</label>
         <div className="flex gap-3">
-          <button type="button" onClick={() => setVisitType('new')}
-            className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${visitType === 'new' ? 'border-pink-400 bg-pink-50 text-pink-600' : 'border-gray-200 text-gray-500 bg-white'}`}>
+          <button
+            type="button"
+            onClick={() => setVisitType('new')}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+              visitType === 'new'
+                ? 'border-pink-400 bg-pink-50 text-pink-700'
+                : 'border-gray-200 text-gray-500 bg-white hover:border-pink-200'
+            }`}
+          >
             新規
           </button>
-          <button type="button" onClick={() => setVisitType('repeat')}
-            className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${visitType === 'repeat' ? 'border-pink-400 bg-pink-50 text-pink-600' : 'border-gray-200 text-gray-500 bg-white'}`}>
+          <button
+            type="button"
+            onClick={() => setVisitType('repeat')}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+              visitType === 'repeat'
+                ? 'border-pink-400 bg-pink-50 text-pink-700'
+                : 'border-gray-200 text-gray-500 bg-white hover:border-pink-200'
+            }`}
+          >
             リピート
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-        <span className="text-sm font-medium text-gray-700">🗑️ 付け替えオフ</span>
-        <button type="button" onClick={() => setHasRemoval(v => !v)}
-          className={`w-12 h-6 rounded-full transition-colors relative ${hasRemoval ? 'bg-pink-400' : 'bg-gray-300'}`}>
-          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${hasRemoval ? 'translate-x-7' : 'translate-x-1'}`} />
+      {/* 付け替えオフ */}
+      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
+        <span className="text-sm font-medium text-gray-700">🪄 付け替えオフ</span>
+        <button
+          type="button"
+          onClick={() => setHasRemoval(v => !v)}
+          className={`w-14 h-7 rounded-full transition-colors relative ${hasRemoval ? 'bg-pink-400' : 'bg-gray-300'}`}
+          aria-label="付け替えオフ切替"
+        >
+          <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasRemoval ? 'translate-x-8' : 'translate-x-1'}`} />
         </button>
+        <span className="text-sm ml-2 text-gray-500">{hasRemoval ? 'あり' : 'なし'}</span>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-700">💅 施術内容を選択（タップで追加）</p>
-        <Section label="施術メニュー" items={menus} selected={menuItems} setter={setMenuItems} useCoupon={true}
-          isOpen={openSection === 'menu'} onToggle={() => toggle('menu')} />
-        <Section label="✨ オプション" items={options} selected={optionItems} setter={setOptionItems}
-          isOpen={openSection === 'option'} onToggle={() => toggle('option')} />
-        <Section label="🛍️ 店販" items={retails} selected={retailItems} setter={setRetailItems}
-          isOpen={openSection === 'retail'} onToggle={() => toggle('retail')} />
-        <Section label="🏷️ 割引" items={discounts} selected={discountItems} setter={setDiscountItems}
-          isOpen={openSection === 'discount'} onToggle={() => toggle('discount')} />
+      {/* 施術メニュー */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">💅 施術メニュー</label>
+        <MenuSection
+          label="メニューを選ぶ"
+          allItems={allMenus}
+          selected={menuItems}
+          onToggle={toggleItem(setMenuItems)}
+          onQtyChange={changeQty(setMenuItems)}
+          onRemove={removeItem(setMenuItems)}
+        />
       </div>
 
-      {hasAnySelected && (
-        <div className="bg-white border-2 border-pink-200 rounded-xl overflow-hidden">
-          <div className="bg-pink-50 px-4 py-2 border-b border-pink-100">
-            <p className="text-sm font-semibold text-pink-700">📋 選択した施術内容・明細</p>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {menuItems.map((item, idx) => (
-              <div key={`m-${idx}`} className="flex items-center justify-between px-4 py-2.5">
-                <div><span className="text-xs text-pink-400 mr-1">メニュー</span><span className="text-sm text-gray-700">{item.name}</span></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setMenuItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-            {optionItems.map((item, idx) => (
-              <div key={`o-${idx}`} className="flex items-center justify-between px-4 py-2.5">
-                <div><span className="text-xs text-purple-400 mr-1">オプション</span><span className="text-sm text-gray-700">{item.name}</span></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setOptionItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-            {retailItems.map((item, idx) => (
-              <div key={`r-${idx}`} className="flex items-center justify-between px-4 py-2.5">
-                <div><span className="text-xs text-blue-400 mr-1">店販</span><span className="text-sm text-gray-700">{item.name}</span></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setRetailItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-            {discountItems.map((item, idx) => (
-              <div key={`d-${idx}`} className="flex items-center justify-between px-4 py-2.5">
-                <div><span className="text-xs text-green-500 mr-1">割引</span><span className="text-sm text-gray-700">{item.name}</span></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-green-600">-¥{item.price.toLocaleString()}</span>
-                  <button type="button" onClick={() => setDiscountItems(p => p.filter((_, i) => i !== idx))} className="text-gray-300 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-pink-50 px-4 py-3 border-t border-pink-100 flex justify-between items-center">
-            <span className="text-sm font-semibold text-gray-700">💴 合計</span>
-            <span className="text-xl font-bold text-pink-500">¥{calcTotal().toLocaleString()}</span>
+      {/* オプション */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">✨ オプション</label>
+        <MenuSection
+          label="オプションを選ぶ"
+          allItems={allOptions}
+          selected={optionItems}
+          onToggle={toggleItem(setOptionItems)}
+          onQtyChange={changeQty(setOptionItems)}
+          onRemove={removeItem(setOptionItems)}
+        />
+      </div>
+
+      {/* 店販 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">🛍 店販</label>
+        <MenuSection
+          label="店販を選ぶ"
+          allItems={allRetails}
+          selected={retailItems}
+          onToggle={toggleItem(setRetailItems)}
+          onQtyChange={changeQty(setRetailItems)}
+          onRemove={removeItem(setRetailItems)}
+        />
+      </div>
+
+      {/* 割引 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">🎁 割引</label>
+        <MenuSection
+          label="割引を選ぶ"
+          allItems={allDiscounts}
+          selected={discountItems}
+          onToggle={toggleItem(setDiscountItems)}
+          onQtyChange={changeQty(setDiscountItems)}
+          onRemove={removeItem(setDiscountItems)}
+        />
+      </div>
+
+      {/* 合計・明細 */}
+      {allSelected.length > 0 && (
+        <div className="bg-pink-50 rounded-xl p-4 border border-pink-200">
+          <p className="text-sm font-semibold text-gray-700 mb-3">💰 明細</p>
+          {menuItems.map(i => (
+            <div key={i.id} className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>{i.name} × {i.qty}</span>
+              <span>¥{(i.price * i.qty).toLocaleString()}</span>
+            </div>
+          ))}
+          {optionItems.map(i => (
+            <div key={i.id} className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>{i.name} × {i.qty}</span>
+              <span>¥{(i.price * i.qty).toLocaleString()}</span>
+            </div>
+          ))}
+          {retailItems.map(i => (
+            <div key={i.id} className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>{i.name} × {i.qty}</span>
+              <span>¥{(i.price * i.qty).toLocaleString()}</span>
+            </div>
+          ))}
+          {discountItems.map(i => (
+            <div key={i.id} className="flex justify-between text-sm text-red-500 mb-1">
+              <span>{i.name} × {i.qty}</span>
+              <span>−¥{(i.price * i.qty).toLocaleString()}</span>
+            </div>
+          ))}
+          <div className="border-t border-pink-300 mt-3 pt-3 flex justify-between font-bold text-gray-800">
+            <span>合計</span>
+            <span>¥{total.toLocaleString()}</span>
           </div>
         </div>
       )}
 
+      {/* 使用カラー */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">🎨 使用カラー</label>
-        <textarea value={colors} onChange={e => setColors(e.target.value)} rows={2}
-          placeholder="例: ベース：ジェリーピンク"
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm" />
+        <input
+          type="text"
+          value={colors}
+          onChange={e => setColors(e.target.value)}
+          placeholder="例: OPI #52, ジェルネイル ピンク系"
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+        />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">👩 担当スタッフ</label>
-        <select value={staffId} onChange={e => setStaffId(e.target.value)}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-300">
-          <option value="">選択してください</option>
-          {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">📷 施術写真</label>
-        <div className="flex flex-wrap gap-2">
-          {photoUrls.map((url, idx) => (
-            <div key={idx} className="relative">
-              <img src={url} alt="施術写真" className="w-20 h-20 object-cover rounded-xl border border-gray-200" />
-              <button type="button" onClick={() => setPhotoUrls(p => p.filter((_, i) => i !== idx))}
-                className="absolute -top-1 -right-1 bg-red-400 text-white rounded-full w-5 h-5 flex items-center justify-center">
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
-            className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-pink-300 hover:text-pink-400">
-            <Camera className="w-6 h-6" />
-            <span className="text-xs mt-1">{uploadingPhoto ? '...' : '追加'}</span>
-          </button>
+      {/* 担当スタッフ */}
+      {staffList.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">👩‍💼 担当スタッフ</label>
+          <select
+            value={staffId}
+            onChange={e => setStaffId(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+          >
+            <option value="">選択してください</option>
+            {staffList.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
-      </div>
+      )}
 
+      {/* 備考 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">📝 メモ</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-          placeholder="お客様の要望、アレルギー、次回提案など"
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm" />
+        <label className="block text-sm font-medium text-gray-700 mb-1">📝 備考</label>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={3}
+          placeholder="特記事項があれば入力してください"
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none"
+        />
       </div>
 
-      <div className="flex gap-3 pt-2 pb-8">
-        <button type="submit" disabled={saving}
-          className="flex-1 bg-pink-500 text-white py-3 rounded-xl hover:bg-pink-600 active:bg-pink-700 disabled:opacity-50 font-medium text-sm">
-          {saving ? '保存中...' : '保存する'}
+      {/* 施術写真 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">📸 施術写真</label>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 transition-colors"
+        >
+          {uploading ? 'アップロード中...' : '写真を追加する'}
         </button>
-        <button type="button" onClick={() => router.push(`/customers/${customerId}`)}
-          className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 active:bg-gray-300 text-sm">
-          キャンセル
-        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handlePhotoUpload}
+          className="hidden"
+        />
+        {photoUrls.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {photoUrls.map((url, i) => (
+              <div key={i} className="relative">
+                <img src={url} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                <button
+                  type="button"
+                  onClick={() => setPhotoUrls(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+                >×</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* 保存ボタン */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full py-3.5 bg-pink-500 text-white rounded-xl font-medium text-sm hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? '保存中...' : treatmentId ? '更新する' : '施術記録を保存する'}
+      </button>
+
     </form>
   )
 }
