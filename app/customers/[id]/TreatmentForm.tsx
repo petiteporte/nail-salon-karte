@@ -31,9 +31,6 @@ const tapStyle: React.CSSProperties = {
   touchAction: 'manipulation',
 }
 
-// ============================================================
-// ItemRow
-// ============================================================
 function ItemRow({
   item, onQtyChange, onRemove, subtotal,
 }: {
@@ -75,9 +72,6 @@ function ItemRow({
   )
 }
 
-// ============================================================
-// MenuSection
-// ============================================================
 function MenuSection({
   label, allItems, selected, onToggle, onQtyChange, onRemove, subtotalForDiscount,
 }: {
@@ -130,9 +124,6 @@ function MenuSection({
   )
 }
 
-// ============================================================
-// TreatmentForm
-// ============================================================
 export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -181,7 +172,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       if (data) {
         setDate(data.date || '')
         setVisitType(data.visit_type || 'repeat')
-        setRemovalOptions(Array.isArray(data.has_removal) ? data.has_removal : (data.has_removal ? [String(data.has_removal)] : []))
+        // has_removalはbooleanで保存されているため、notesからオプション情報を復元
         setMenuItems(data.menu_items || [])
         setOptionItems(data.option_items || [])
         setRetailItems(data.retail_items || [])
@@ -223,17 +214,13 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     setter(prev => prev.filter(s => s.id !== id))
   }
 
-  // メニュー・オプション・店販の小計
   const beforeDiscount =
     menuItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0) +
     optionItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0) +
     retailItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0)
 
-  // 割引合計（固定金額 or パーセント割引）
   const discountTotal = discountItems.reduce((s, i) => {
-    if (i.discount_rate != null) {
-      return s + Math.round(beforeDiscount * i.discount_rate / 100)
-    }
+    if (i.discount_rate != null) return s + Math.round(beforeDiscount * i.discount_rate / 100)
     return s + (Number(i.price) || 0) * i.qty
   }, 0)
 
@@ -259,17 +246,23 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+
     const allSelectedStr = [
       ...menuItems.map(m => m.name),
       ...optionItems.map(m => m.name),
       ...retailItems.map(m => m.name),
     ].join(', ')
+
+    // 付け替えオフの選択内容をnotesに追記
+    const removalNote = removalOptions.length > 0 ? `【付け替えオフ】${removalOptions.join('、')}` : ''
+    const fullNotes = [removalNote, notes].filter(Boolean).join('\n')
+
     const payload = {
       customer_id: customerId,
       date,
       services: allSelectedStr || '',
       visit_type: visitType,
-      has_removal: removalOptions,
+      has_removal: removalOptions.length > 0,  // boolean として保存
       menu_items: menuItems,
       option_items: optionItems,
       retail_items: retailItems,
@@ -277,9 +270,10 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       total_price: total,
       colors,
       staff_id: staffId || null,
-      notes,
+      notes: fullNotes,
       photo_urls: photoUrls,
     }
+
     let error
     if (treatmentId) {
       const result = await supabase.from('treatments').update(payload).eq('id', treatmentId)
@@ -288,6 +282,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       const result = await supabase.from('treatments').insert(payload)
       error = result.error
     }
+
     setLoading(false)
     if (error) {
       alert('保存に失敗しました: ' + error.message)
@@ -316,13 +311,11 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* 日付 */}
       <div>
         <label style={labelStyle}>📅 日付</label>
         <input type="date" value={date} onChange={e => setDate(e.target.value)} required style={inputStyle} />
       </div>
 
-      {/* 来客区分 */}
       <div>
         <label style={labelStyle}>👤 来客区分</label>
         <div style={{ display: 'flex', gap: 12 }}>
@@ -337,7 +330,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       </div>
 
-      {/* 付け替えオフ */}
       <div>
         <label style={labelStyle}>🪄 付け替えオフ　<span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>（複数選択可）</span></label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -355,28 +347,24 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       </div>
 
-      {/* 施術メニュー */}
       <div>
         <label style={labelStyle}>💅 施術メニュー</label>
         <MenuSection label="メニューを選ぶ" allItems={allMenus} selected={menuItems}
           onToggle={toggleItem(setMenuItems)} onQtyChange={changeQty(setMenuItems)} onRemove={removeItem(setMenuItems)} />
       </div>
 
-      {/* オプション */}
       <div>
         <label style={labelStyle}>✨ オプション</label>
         <MenuSection label="オプションを選ぶ" allItems={allOptions} selected={optionItems}
           onToggle={toggleItem(setOptionItems)} onQtyChange={changeQty(setOptionItems)} onRemove={removeItem(setOptionItems)} />
       </div>
 
-      {/* 店販 */}
       <div>
         <label style={labelStyle}>🛍 店販</label>
         <MenuSection label="店販を選ぶ" allItems={allRetails} selected={retailItems}
           onToggle={toggleItem(setRetailItems)} onQtyChange={changeQty(setRetailItems)} onRemove={removeItem(setRetailItems)} />
       </div>
 
-      {/* 割引 */}
       <div>
         <label style={labelStyle}>🎁 割引</label>
         <MenuSection label="割引を選ぶ" allItems={allDiscounts} selected={discountItems}
@@ -384,7 +372,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
           subtotalForDiscount={beforeDiscount} />
       </div>
 
-      {/* 合計・明細 */}
       {allSelected.length > 0 && (
         <div style={{ background: '#fdf2f8', borderRadius: 12, padding: 16, border: '1px solid #fbcfe8' }}>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 12 }}>💰 明細</p>
@@ -420,14 +407,12 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       )}
 
-      {/* 使用カラー */}
       <div>
         <label style={labelStyle}>🎨 使用カラー</label>
         <input type="text" value={colors} onChange={e => setColors(e.target.value)}
           placeholder="例: OPI #52, ジェルネイル ピンク系" style={inputStyle} />
       </div>
 
-      {/* 担当スタッフ */}
       {staffList.length > 0 && (
         <div>
           <label style={labelStyle}>👩‍💼 担当スタッフ</label>
@@ -438,7 +423,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         </div>
       )}
 
-      {/* 備考 */}
       <div>
         <label style={labelStyle}>📝 備考</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
@@ -446,7 +430,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
           style={{ ...inputStyle, resize: 'none' }} />
       </div>
 
-      {/* 施術写真 */}
       <div>
         <label style={labelStyle}>📸 施術写真</label>
         <button type="button" onClick={() => fileInputRef.current?.click()}
@@ -467,7 +450,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         )}
       </div>
 
-      {/* 保存ボタン */}
       <button type="submit" disabled={loading}
         style={{ ...tapStyle, width: '100%', padding: '14px 0', background: loading ? '#f9a8d4' : '#ec4899', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600 }}>
         {loading ? '保存中...' : treatmentId ? '更新する' : '施術記録を保存する'}
