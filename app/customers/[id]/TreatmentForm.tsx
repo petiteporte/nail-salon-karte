@@ -18,7 +18,12 @@ interface Props {
 }
 
 // ============================================================
-// Sectionコンポーネント - TreatmentForm の外に定義（重要）
+// ボタンスタイル定数 - iOS Safari対応
+// ============================================================
+const btnBase = 'cursor-pointer select-none touch-manipulation'
+
+// ============================================================
+// ItemRow - ファイルトップレベルで定義
 // ============================================================
 function ItemRow({
   item,
@@ -36,25 +41,28 @@ function ItemRow({
         <button
           type="button"
           onClick={() => onQtyChange(item.id, -1)}
-          className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-lg leading-none hover:bg-gray-200"
+          className={`w-7 h-7 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-lg leading-none hover:bg-gray-200 ${btnBase}`}
         >−</button>
         <span className="w-6 text-center text-sm">{item.qty}</span>
         <button
           type="button"
           onClick={() => onQtyChange(item.id, 1)}
-          className="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-lg leading-none hover:bg-pink-200"
+          className={`w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center text-lg leading-none hover:bg-pink-200 ${btnBase}`}
         >+</button>
         <span className="w-16 text-right text-sm text-gray-600">¥{(item.price * item.qty).toLocaleString()}</span>
         <button
           type="button"
           onClick={() => onRemove(item.id)}
-          className="ml-1 text-gray-300 hover:text-red-400 text-lg"
+          className={`ml-1 text-gray-300 hover:text-red-400 text-lg ${btnBase}`}
         >×</button>
       </div>
     </div>
   )
 }
 
+// ============================================================
+// MenuSection - ファイルトップレベルで定義
+// ============================================================
 function MenuSection({
   label,
   allItems,
@@ -79,10 +87,10 @@ function MenuSection({
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex justify-between items-center px-4 py-3 bg-gray-50 text-sm font-medium text-gray-700 hover:bg-gray-100"
+        className={`w-full flex justify-between items-center px-4 py-3 bg-gray-50 text-sm font-medium text-gray-700 hover:bg-gray-100 ${btnBase}`}
       >
         <span>{label}</span>
-        <span className="text-gray-400">{open ? '▲' : '▼'} {selected.length > 0 ? `(${selected.length})` : ''}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}{selected.length > 0 ? ` (${selected.length}件)` : ''}</span>
       </button>
 
       {open && (
@@ -93,7 +101,7 @@ function MenuSection({
                 key={item.id}
                 type="button"
                 onClick={() => onToggle(item)}
-                className={`py-2 px-3 rounded-lg text-xs text-left border transition-colors ${
+                className={`py-2 px-3 rounded-lg text-xs text-left border transition-colors ${btnBase} ${
                   selectedIds.has(item.id)
                     ? 'border-pink-400 bg-pink-50 text-pink-700'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-pink-200'
@@ -124,7 +132,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 基本情報
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [visitType, setVisitType] = useState<'new' | 'repeat'>('repeat')
   const [hasRemoval, setHasRemoval] = useState(false)
@@ -134,13 +141,11 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
 
-  // メニュー選択
   const [menuItems, setMenuItems] = useState<SelectedItem[]>([])
   const [optionItems, setOptionItems] = useState<SelectedItem[]>([])
   const [retailItems, setRetailItems] = useState<SelectedItem[]>([])
   const [discountItems, setDiscountItems] = useState<SelectedItem[]>([])
 
-  // マスタデータ
   const [allMenus, setAllMenus] = useState<MenuRow[]>([])
   const [allOptions, setAllOptions] = useState<MenuRow[]>([])
   const [allRetails, setAllRetails] = useState<MenuRow[]>([])
@@ -149,7 +154,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
 
   const [loading, setLoading] = useState(false)
 
-  // マスタデータ読み込み
   useEffect(() => {
     const load = async () => {
       const [menusRes, staffRes] = await Promise.all([
@@ -157,16 +161,15 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         supabase.from('staff').select('id, name').order('name'),
       ])
       const menus = menusRes.data || []
-      setAllMenus(menus.filter(m => m.category === 'menu'))
-      setAllOptions(menus.filter(m => m.category === 'option'))
-      setAllRetails(menus.filter(m => m.category === 'retail'))
-      setAllDiscounts(menus.filter(m => m.category === 'discount'))
+      setAllMenus(menus.filter((m: MenuRow) => m.category === 'menu'))
+      setAllOptions(menus.filter((m: MenuRow) => m.category === 'option'))
+      setAllRetails(menus.filter((m: MenuRow) => m.category === 'retail'))
+      setAllDiscounts(menus.filter((m: MenuRow) => m.category === 'discount'))
       setStaffList(staffRes.data || [])
     }
     load()
   }, [])
 
-  // 編集時の既存データ読み込み
   useEffect(() => {
     if (!treatmentId) return
     const load = async () => {
@@ -188,7 +191,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     load()
   }, [treatmentId])
 
-  // アイテム操作
   const toggleItem = (setter: React.Dispatch<React.SetStateAction<SelectedItem[]>>) => (item: MenuRow) => {
     setter(prev => {
       const exists = prev.find(s => s.id === item.id)
@@ -205,11 +207,9 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     setter(prev => prev.filter(s => s.id !== id))
   }
 
-  // 合計金額
   const calcTotal = (items: SelectedItem[]) => items.reduce((sum, i) => sum + i.price * i.qty, 0)
   const total = calcTotal(menuItems) + calcTotal(optionItems) + calcTotal(retailItems) - calcTotal(discountItems)
 
-  // 写真アップロード
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -227,12 +227,10 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     setUploading(false)
   }
 
-  // 保存
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const menuStr = menuItems.map(m => m.name).join(', ')
     const allSelectedStr = [
       ...menuItems.map(m => m.name),
       ...optionItems.map(m => m.name),
@@ -242,7 +240,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     const payload = {
       customer_id: customerId,
       date,
-      services: allSelectedStr || menuStr || '',
+      services: allSelectedStr || '',
       visit_type: visitType,
       has_removal: hasRemoval,
       menu_items: menuItems,
@@ -275,6 +273,18 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
 
   const allSelected = [...menuItems, ...optionItems, ...retailItems, ...discountItems]
 
+  // 来客区分ボタンのハンドラ（iOS対応）
+  const handleVisitTypeNew = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setVisitType('new')
+  }
+  const handleVisitTypeRepeat = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setVisitType('repeat')
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -294,43 +304,70 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">👤 来客区分</label>
         <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => setVisitType('new')}
-            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={handleVisitTypeNew}
+            onTouchEnd={handleVisitTypeNew}
+            onKeyDown={e => e.key === 'Enter' && setVisitType('new')}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium text-center transition-colors ${btnBase} ${
               visitType === 'new'
                 ? 'border-pink-400 bg-pink-50 text-pink-700'
-                : 'border-gray-200 text-gray-500 bg-white hover:border-pink-200'
+                : 'border-gray-200 text-gray-500 bg-white'
             }`}
           >
             新規
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisitType('repeat')}
-            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-colors ${
+          </div>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={handleVisitTypeRepeat}
+            onTouchEnd={handleVisitTypeRepeat}
+            onKeyDown={e => e.key === 'Enter' && setVisitType('repeat')}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium text-center transition-colors ${btnBase} ${
               visitType === 'repeat'
                 ? 'border-pink-400 bg-pink-50 text-pink-700'
-                : 'border-gray-200 text-gray-500 bg-white hover:border-pink-200'
+                : 'border-gray-200 text-gray-500 bg-white'
             }`}
           >
             リピート
-          </button>
+          </div>
         </div>
       </div>
 
-      {/* 付け替えオフ */}
-      <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl">
-        <span className="text-sm font-medium text-gray-700">🪄 付け替えオフ</span>
-        <button
-          type="button"
-          onClick={() => setHasRemoval(v => !v)}
-          className={`w-14 h-7 rounded-full transition-colors relative ${hasRemoval ? 'bg-pink-400' : 'bg-gray-300'}`}
-          aria-label="付け替えオフ切替"
-        >
-          <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasRemoval ? 'translate-x-8' : 'translate-x-1'}`} />
-        </button>
-        <span className="text-sm ml-2 text-gray-500">{hasRemoval ? 'あり' : 'なし'}</span>
+      {/* 付け替えオフ - チェックボックス形式（Macと統一） */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">🪄 付け替えオフ</label>
+        <div className="flex gap-3">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setHasRemoval(false)}
+            onTouchEnd={e => { e.preventDefault(); setHasRemoval(false) }}
+            onKeyDown={e => e.key === 'Enter' && setHasRemoval(false)}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium text-center transition-colors ${btnBase} ${
+              !hasRemoval
+                ? 'border-pink-400 bg-pink-50 text-pink-700'
+                : 'border-gray-200 text-gray-500 bg-white'
+            }`}
+          >
+            なし
+          </div>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setHasRemoval(true)}
+            onTouchEnd={e => { e.preventDefault(); setHasRemoval(true) }}
+            onKeyDown={e => e.key === 'Enter' && setHasRemoval(true)}
+            className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium text-center transition-colors ${btnBase} ${
+              hasRemoval
+                ? 'border-pink-400 bg-pink-50 text-pink-700'
+                : 'border-gray-200 text-gray-500 bg-white'
+            }`}
+          >
+            あり
+          </div>
+        </div>
       </div>
 
       {/* 施術メニュー */}
@@ -467,7 +504,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 transition-colors"
+          className={`w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 transition-colors ${btnBase}`}
         >
           {uploading ? 'アップロード中...' : '写真を追加する'}
         </button>
@@ -487,7 +524,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
                 <button
                   type="button"
                   onClick={() => setPhotoUrls(prev => prev.filter((_, idx) => idx !== i))}
-                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+                  className={`absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center ${btnBase}`}
                 >×</button>
               </div>
             ))}
@@ -499,7 +536,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3.5 bg-pink-500 text-white rounded-xl font-medium text-sm hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`w-full py-3.5 bg-pink-500 text-white rounded-xl font-medium text-sm hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${btnBase}`}
       >
         {loading ? '保存中...' : treatmentId ? '更新する' : '施術記録を保存する'}
       </button>
