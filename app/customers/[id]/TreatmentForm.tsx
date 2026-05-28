@@ -8,8 +8,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-type SelectedItem = { id: string; name: string; price: number; qty: number }
-type MenuRow = { id: string; name: string; price: number; category: string }
+type SelectedItem = { id: string; name: string; price: number; qty: number; discount_rate?: number | null }
+type MenuRow = { id: string; name: string; price: number | null; category: string; discount_rate?: number | null }
 type StaffRow = { id: string; name: string }
 
 interface Props {
@@ -24,7 +24,6 @@ const REMOVAL_OPTIONS = [
   'リピーター様自店4週間以上経過オフ',
 ]
 
-// iOS対応ボタン共通スタイル
 const tapStyle: React.CSSProperties = {
   cursor: 'pointer',
   WebkitTapHighlightColor: 'transparent',
@@ -36,24 +35,39 @@ const tapStyle: React.CSSProperties = {
 // ItemRow
 // ============================================================
 function ItemRow({
-  item,
-  onQtyChange,
-  onRemove,
+  item, onQtyChange, onRemove, subtotal,
 }: {
   item: SelectedItem
   onQtyChange: (id: string, delta: number) => void
   onRemove: (id: string) => void
+  subtotal?: number
 }) {
+  const displayPrice = item.discount_rate != null
+    ? (subtotal != null ? Math.round(subtotal * item.discount_rate / 100) : 0)
+    : (Number(item.price) || 0) * item.qty
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f3f4f6' }}>
       <span style={{ fontSize: '14px', color: '#374151', flex: 1 }}>{item.name}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button type="button" style={{ ...tapStyle, width: 28, height: 28, borderRadius: '50%', background: '#f3f4f6', border: 'none', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563' }}
-          onClick={() => onQtyChange(item.id, -1)}>−</button>
-        <span style={{ width: 20, textAlign: 'center', fontSize: 14 }}>{item.qty}</span>
-        <button type="button" style={{ ...tapStyle, width: 28, height: 28, borderRadius: '50%', background: '#fce7f3', border: 'none', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#db2777' }}
-          onClick={() => onQtyChange(item.id, 1)}>+</button>
-        <span style={{ width: 64, textAlign: 'right', fontSize: 13, color: '#6b7280' }}>¥{(item.price * item.qty).toLocaleString()}</span>
+        {item.discount_rate == null && (
+          <>
+            <button type="button" style={{ ...tapStyle, width: 28, height: 28, borderRadius: '50%', background: '#f3f4f6', border: 'none', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563' }}
+              onClick={() => onQtyChange(item.id, -1)}>−</button>
+            <span style={{ width: 20, textAlign: 'center', fontSize: 14 }}>{item.qty}</span>
+            <button type="button" style={{ ...tapStyle, width: 28, height: 28, borderRadius: '50%', background: '#fce7f3', border: 'none', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#db2777' }}
+              onClick={() => onQtyChange(item.id, 1)}>+</button>
+          </>
+        )}
+        {item.discount_rate != null && (
+          <span style={{ fontSize: 13, color: '#6b7280' }}>{item.discount_rate}%引き</span>
+        )}
+        <span style={{ width: 72, textAlign: 'right', fontSize: 13, color: '#6b7280' }}>
+          {item.discount_rate != null && subtotal != null
+            ? `−¥${displayPrice.toLocaleString()}`
+            : `¥${displayPrice.toLocaleString()}`
+          }
+        </span>
         <button type="button" style={{ ...tapStyle, marginLeft: 4, background: 'none', border: 'none', fontSize: 18, color: '#d1d5db' }}
           onClick={() => onRemove(item.id)}>×</button>
       </div>
@@ -65,7 +79,7 @@ function ItemRow({
 // MenuSection
 // ============================================================
 function MenuSection({
-  label, allItems, selected, onToggle, onQtyChange, onRemove,
+  label, allItems, selected, onToggle, onQtyChange, onRemove, subtotalForDiscount,
 }: {
   label: string
   allItems: MenuRow[]
@@ -73,6 +87,7 @@ function MenuSection({
   onToggle: (item: MenuRow) => void
   onQtyChange: (id: string, delta: number) => void
   onRemove: (id: string) => void
+  subtotalForDiscount?: number
 }) {
   const [open, setOpen] = useState(false)
   if (allItems.length === 0) return null
@@ -93,14 +108,19 @@ function MenuSection({
                 style={{ ...tapStyle, padding: '8px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left', border: selectedIds.has(item.id) ? '2px solid #f472b6' : '1px solid #e5e7eb', background: selectedIds.has(item.id) ? '#fdf2f8' : '#fff', color: selectedIds.has(item.id) ? '#be185d' : '#4b5563' }}
                 onClick={() => onToggle(item)}>
                 <div style={{ fontWeight: 600 }}>{item.name}</div>
-                <div style={{ color: '#9ca3af', marginTop: 2 }}>¥{item.price.toLocaleString()}</div>
+                <div style={{ color: '#9ca3af', marginTop: 2 }}>
+                  {item.discount_rate != null
+                    ? `${item.discount_rate}%引き`
+                    : item.price != null ? `¥${item.price.toLocaleString()}` : ''
+                  }
+                </div>
               </button>
             ))}
           </div>
           {selected.length > 0 && (
             <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 8 }}>
               {selected.map(item => (
-                <ItemRow key={item.id} item={item} onQtyChange={onQtyChange} onRemove={onRemove} />
+                <ItemRow key={item.id} item={item} onQtyChange={onQtyChange} onRemove={onRemove} subtotal={subtotalForDiscount} />
               ))}
             </div>
           )}
@@ -141,7 +161,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   useEffect(() => {
     const load = async () => {
       const [menusRes, staffRes] = await Promise.all([
-        supabase.from('menus').select('*').order('category').order('name'),
+        supabase.from('menus').select('*').order('sort_order'),
         supabase.from('staff').select('id, name').order('name'),
       ])
       const menus = (menusRes.data || []) as MenuRow[]
@@ -161,7 +181,7 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       if (data) {
         setDate(data.date || '')
         setVisitType(data.visit_type || 'repeat')
-        setRemovalOptions(Array.isArray(data.has_removal) ? data.has_removal : (data.has_removal ? [data.has_removal] : []))
+        setRemovalOptions(Array.isArray(data.has_removal) ? data.has_removal : (data.has_removal ? [String(data.has_removal)] : []))
         setMenuItems(data.menu_items || [])
         setOptionItems(data.option_items || [])
         setRetailItems(data.retail_items || [])
@@ -185,7 +205,13 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     setter(prev => {
       const exists = prev.find(s => s.id === item.id)
       if (exists) return prev.filter(s => s.id !== item.id)
-      return [...prev, { id: item.id, name: item.name, price: Number(item.price) || 0, qty: 1 }]
+      return [...prev, {
+        id: item.id,
+        name: item.name,
+        price: Number(item.price) || 0,
+        qty: 1,
+        discount_rate: item.discount_rate ?? null,
+      }]
     })
   }
 
@@ -197,10 +223,21 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
     setter(prev => prev.filter(s => s.id !== id))
   }
 
-  const safeSum = (items: SelectedItem[]) =>
-    items.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 1), 0)
+  // メニュー・オプション・店販の小計
+  const beforeDiscount =
+    menuItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0) +
+    optionItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0) +
+    retailItems.reduce((s, i) => s + (Number(i.price) || 0) * i.qty, 0)
 
-  const total = safeSum(menuItems) + safeSum(optionItems) + safeSum(retailItems) - safeSum(discountItems)
+  // 割引合計（固定金額 or パーセント割引）
+  const discountTotal = discountItems.reduce((s, i) => {
+    if (i.discount_rate != null) {
+      return s + Math.round(beforeDiscount * i.discount_rate / 100)
+    }
+    return s + (Number(i.price) || 0) * i.qty
+  }, 0)
+
+  const total = beforeDiscount - discountTotal
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -222,13 +259,11 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
     const allSelectedStr = [
       ...menuItems.map(m => m.name),
       ...optionItems.map(m => m.name),
       ...retailItems.map(m => m.name),
     ].join(', ')
-
     const payload = {
       customer_id: customerId,
       date,
@@ -245,7 +280,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       notes,
       photo_urls: photoUrls,
     }
-
     let error
     if (treatmentId) {
       const result = await supabase.from('treatments').update(payload).eq('id', treatmentId)
@@ -254,7 +288,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       const result = await supabase.from('treatments').insert(payload)
       error = result.error
     }
-
     setLoading(false)
     if (error) {
       alert('保存に失敗しました: ' + error.message)
@@ -265,7 +298,6 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
 
   const allSelected = [...menuItems, ...optionItems, ...retailItems, ...discountItems]
 
-  // 来客区分ハンドラ（iOS対応）
   const handleNew = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault(); e.stopPropagation(); setVisitType('new')
   }
@@ -294,30 +326,28 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       <div>
         <label style={labelStyle}>👤 来客区分</label>
         <div style={{ display: 'flex', gap: 12 }}>
-          <div role="button" tabIndex={0}
-            onClick={handleNew} onTouchEnd={handleNew}
+          <div role="button" tabIndex={0} onClick={handleNew} onTouchEnd={handleNew}
             style={{ ...tapStyle, flex: 1, padding: '12px 0', borderRadius: 12, border: visitType === 'new' ? '2px solid #f472b6' : '2px solid #e5e7eb', background: visitType === 'new' ? '#fdf2f8' : '#fff', color: visitType === 'new' ? '#be185d' : '#6b7280', fontSize: 14, fontWeight: 500, textAlign: 'center' }}>
             新規
           </div>
-          <div role="button" tabIndex={0}
-            onClick={handleRepeat} onTouchEnd={handleRepeat}
+          <div role="button" tabIndex={0} onClick={handleRepeat} onTouchEnd={handleRepeat}
             style={{ ...tapStyle, flex: 1, padding: '12px 0', borderRadius: 12, border: visitType === 'repeat' ? '2px solid #f472b6' : '2px solid #e5e7eb', background: visitType === 'repeat' ? '#fdf2f8' : '#fff', color: visitType === 'repeat' ? '#be185d' : '#6b7280', fontSize: 14, fontWeight: 500, textAlign: 'center' }}>
             リピート
           </div>
         </div>
       </div>
 
-      {/* 付け替えオフ（4項目・複数選択可） */}
+      {/* 付け替えオフ */}
       <div>
         <label style={labelStyle}>🪄 付け替えオフ　<span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>（複数選択可）</span></label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {REMOVAL_OPTIONS.map(opt => {
-            const selected = removalOptions.includes(opt)
+            const sel = removalOptions.includes(opt)
             return (
               <div key={opt} role="button" tabIndex={0}
                 onClick={() => toggleRemoval(opt)}
                 onTouchEnd={e => { e.preventDefault(); toggleRemoval(opt) }}
-                style={{ ...tapStyle, padding: '10px 16px', borderRadius: 20, border: selected ? '2px solid #f472b6' : '1px solid #e5e7eb', background: selected ? '#fdf2f8' : '#f9fafb', color: selected ? '#be185d' : '#374151', fontSize: 13, fontWeight: selected ? 600 : 400 }}>
+                style={{ ...tapStyle, padding: '10px 16px', borderRadius: 20, border: sel ? '2px solid #f472b6' : '1px solid #e5e7eb', background: sel ? '#fdf2f8' : '#f9fafb', color: sel ? '#be185d' : '#374151', fontSize: 13, fontWeight: sel ? 600 : 400 }}>
                 {opt}
               </div>
             )
@@ -350,7 +380,8 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
       <div>
         <label style={labelStyle}>🎁 割引</label>
         <MenuSection label="割引を選ぶ" allItems={allDiscounts} selected={discountItems}
-          onToggle={toggleItem(setDiscountItems)} onQtyChange={changeQty(setDiscountItems)} onRemove={removeItem(setDiscountItems)} />
+          onToggle={toggleItem(setDiscountItems)} onQtyChange={changeQty(setDiscountItems)} onRemove={removeItem(setDiscountItems)}
+          subtotalForDiscount={beforeDiscount} />
       </div>
 
       {/* 合計・明細 */}
@@ -372,12 +403,18 @@ export default function TreatmentForm({ customerId, treatmentId }: Props) {
               <span>{i.name} × {i.qty}</span><span>¥{((Number(i.price)||0) * i.qty).toLocaleString()}</span>
             </div>
           ))}
-          {discountItems.map(i => (
-            <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#ef4444', marginBottom: 4 }}>
-              <span>{i.name} × {i.qty}</span><span>−¥{((Number(i.price)||0) * i.qty).toLocaleString()}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: '1px solid #fbcfe8', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#1f2937' }}>
+          {discountItems.map(i => {
+            const amt = i.discount_rate != null
+              ? Math.round(beforeDiscount * i.discount_rate / 100)
+              : (Number(i.price)||0) * i.qty
+            return (
+              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#ef4444', marginBottom: 4 }}>
+                <span>{i.name}{i.discount_rate != null ? ` (${i.discount_rate}%)` : ` × ${i.qty}`}</span>
+                <span>−¥{amt.toLocaleString()}</span>
+              </div>
+            )
+          })}
+          <div style={{ borderTop: '1px solid #fbcfe8', marginTop: 12, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#1f2937', fontSize: 15 }}>
             <span>合計</span><span>¥{total.toLocaleString()}</span>
           </div>
         </div>
